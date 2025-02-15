@@ -1,6 +1,8 @@
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
 
 from TicTacToeDataProcessor import TicTacToeDataProcessor
 
@@ -9,29 +11,53 @@ class TicTacToeAI():
     def __init__(self):
         np.random.seed(1)
         
-        weights_input_hidden1 = 2 * np.random.random((9, 9))
+        inputH1Size = 7
+        h1Size = 5
         
-        weights_hidden1 = 2 * np.random.random((9, 3)) 
+        weights_input_hidden1 = 2 * np.random.random((9, inputH1Size)) * np.sqrt(1 / inputH1Size)
         
-        weights_hidden1_output = 2 * np.random.random((3, 1)) 
+        weights_hidden1 = 2 * np.random.random((inputH1Size, h1Size)) * np.sqrt(1 / h1Size)
+        
+        weights_hidden1_output = 2 * np.random.random((h1Size, 1))
 
         self.synaptic_weights = [weights_input_hidden1, weights_hidden1, weights_hidden1_output]
+        
+        self.biases = [np.zeros((1, inputH1Size)), np.zeros((1, h1Size)), np.zeros((1, 1))]
+    
+    def use_previous_weights(self, filename, array_amount):
+        loaded_data = np.load(filename)
+        
+        self.synaptic_weights = []
+        
+        for i in range(array_amount):
+            i += 1
+            self.synaptic_weights.append(loaded_data['array' + str(i)])
+        
+
+    
+    def tanh(self, x):
+        x = np.clip(x, -500, 500) #Clipping x to avoid runtime overflow
+        return np.tanh(x)
+    
+    def tanh_derivative(self, x):
+        return 1.0 - np.tanh(x) ** 2
     
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
     
     def sigmoid_derivative(self, x):
-        return x * (1 - x)
+        return self.sigmoid(x) * (1 - self.sigmoid(x))
     
     def forward_Propagate(self, inputs):
-        self.layer1_output = self.sigmoid(np.dot(inputs, self.synaptic_weights[0]))  
+        self.layer1_output = self.tanh(np.dot(inputs, self.synaptic_weights[0]) + self.biases[0])  
         
-        self.layer2_output = self.sigmoid(np.dot(self.layer1_output, self.synaptic_weights[1]))
+        self.layer2_output = self.tanh(np.dot(self.layer1_output, self.synaptic_weights[1]) + self.biases[1])
         
-        output = self.sigmoid(np.dot(self.layer2_output, self.synaptic_weights[2])) 
+        output = self.sigmoid(np.dot(self.layer2_output, self.synaptic_weights[2]) + self.biases[2]) 
+        
         return output
     
-    def train(self, training_inputs, training_outputs, training_iterations):
+    def train(self, training_inputs, training_outputs, training_iterations, learning_rate):
         
         print("Training inputs shape:", training_inputs.shape)
         
@@ -39,14 +65,14 @@ class TicTacToeAI():
         
         for iteration in range(training_iterations):
             
-            batch_size = 128
+            batch_size = 256
             
             permutation = np.random.permutation(data_size)
             training_inputs = training_inputs[permutation]
             training_outputs = training_outputs[permutation]
             
             
-            for i in range(0, data_size, batch_size):
+            for i in range(0, batch_size):
                 
                 end = min(i + batch_size, data_size)
             
@@ -69,16 +95,20 @@ class TicTacToeAI():
                 adjustments_output = np.dot(self.layer2_output.T, delta_output)  
                 
                 error_hidden1 = np.dot(delta_output, self.synaptic_weights[2].T)  
-                delta_hidden1 = error_hidden1 * self.sigmoid_derivative(self.layer2_output) 
+                delta_hidden1 = error_hidden1 * self.tanh_derivative(self.layer2_output) 
                 adjustments_hidden1 = np.dot(self.layer1_output.T, delta_hidden1)  
                 
                 error_input = np.dot(delta_hidden1, self.synaptic_weights[1].T)
-                delta_input = error_input * self.sigmoid_derivative(self.layer1_output)
+                delta_input = error_input * self.tanh_derivative(self.layer1_output)
                 adjustments_inputs = np.dot(batch_inputs.T, delta_input)
 
-                self.synaptic_weights[2] += adjustments_output
-                self.synaptic_weights[1] += adjustments_hidden1
-                self.synaptic_weights[0] += adjustments_inputs
+                self.synaptic_weights[2] += adjustments_output * learning_rate
+                self.synaptic_weights[1] += adjustments_hidden1 * learning_rate
+                self.synaptic_weights[0] += adjustments_inputs * learning_rate
+                
+                self.biases[2] += learning_rate * np.sum(delta_output, axis=0)
+                self.biases[1] += learning_rate * np.sum(delta_hidden1, axis=0)
+                self.biases[0] += learning_rate * np.sum(delta_input, axis=0)
                 
                 print("Running Iteration: ", iteration, "On input: ", i) 
 
@@ -98,10 +128,23 @@ if __name__ == "__main__":
 
     training_outputs = processor.get_training_outputs().T  
     
-    neural_network.train(training_inputs, training_outputs, 1000)
+    filename = 'synaptic weights after training.npz'
+    
+    if str(input("Use previous training weights? y/n \n")) == "y" :
+        neural_network.use_previous_weights(filename, 3)
+    
+    if str(input("Delete previous traning weights save file? y/n \n")) == "y": 
+        if os.path.exists(filename):
+            os.remove(filename)
+    
+    neural_network.train(training_inputs, training_outputs, 2000, 0.01)
     
     print("Synaptic weights after training: ")
     print(neural_network.synaptic_weights)
+    
+    dataToSave = [neural_network.synaptic_weights[0], neural_network.synaptic_weights[1], neural_network.synaptic_weights[2]]
+    
+    np.savez('synaptic weights after training.npz', array1=dataToSave[0], array2=dataToSave[1], array3=dataToSave[2])
     
     case1 = neural_network.forward_Propagate(np.array([1,1,1,1,0,0,0,0,1]))
     case2 = neural_network.forward_Propagate(np.array([0,1,0,1,1,1,1,0,0]))
