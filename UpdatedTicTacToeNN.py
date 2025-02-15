@@ -65,7 +65,7 @@ class TicTacToeAI():
         
         for iteration in range(training_iterations):
             
-            batch_size = 256
+            batch_size = 128
             
             permutation = np.random.permutation(data_size)
             training_inputs = training_inputs[permutation]
@@ -123,6 +123,7 @@ if __name__ == "__main__":
     processor = TicTacToeDataProcessor(file_path=file_path)
 
     processor.load_data()
+    processor.shuffle_data(5)
 
     training_inputs = processor.get_training_inputs()
 
@@ -149,6 +150,7 @@ if __name__ == "__main__":
     case1 = neural_network.forward_Propagate(np.array([1,1,1,1,0,0,0,0,1]))
     case2 = neural_network.forward_Propagate(np.array([0,1,0,1,1,1,1,0,0]))
     case3 = neural_network.forward_Propagate(np.array([0,0,-1,1,0,1,1,0,1]))
+    
     
     
     print(case1)

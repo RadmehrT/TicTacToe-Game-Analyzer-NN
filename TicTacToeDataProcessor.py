@@ -30,3 +30,7 @@ class TicTacToeDataProcessor:
         else:
             raise ValueError("Data is not loaded. Call 'load_data' first.")
 
+    def shuffle_data(self, iterations):
+        for i in range(iterations):
+            self.df = self.df.sample(frac=1).reset_index(drop=True)
+            i += 1
